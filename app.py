@@ -25,7 +25,7 @@ class NotifyIncident(StatesGroup):
     waiting_for_description = State()
     waiting_for_chairman = State()
 
-# --- инициализация БД ---
+# -- инициализация БД --
 async def init_db():
     async with aiosqlite.connect(DB_PATH) as db:
         # подписчики
