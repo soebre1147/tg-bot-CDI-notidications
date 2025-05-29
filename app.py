@@ -5,7 +5,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.storage.memory import MemoryStorage
 import aiosqlite
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup,ReplyKeyboardMarkup,KeyboardButton
 from bot_token import bot_token
 TOKEN = bot_token
 ADMIN_ID = 868359912
@@ -14,6 +14,15 @@ DB_PATH = 'users.db'
 bot = Bot(token=TOKEN)
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
+
+admin_reply_kb = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton(text="📢 Заявить о происшествии")],
+        [KeyboardButton(text="➕ Добавить пользователя")],
+    ],
+    resize_keyboard=True,  # подгоняет по размеру
+    one_time_keyboard=False  # клавиатура будет оставаться
+)
 
 class NotifyIncident(StatesGroup):
     waiting_for_date = State()
@@ -25,7 +34,7 @@ class NotifyIncident(StatesGroup):
     waiting_for_description = State()
     waiting_for_chairman = State()
 
-# -- инициализация БД --
+# --- инициализация БД ---
 async def init_db():
     async with aiosqlite.connect(DB_PATH) as db:
         # подписчики
@@ -115,10 +124,13 @@ async def get_notifications(limit: int = 20) -> list[dict]:
 @dp.message(CommandStart())
 async def cmd_start(message: types.Message):
     user_id = message.from_user.id
-    await message.reply(f"Здравствуйте, это чат-бот для уведомления о происшествиях. Напишите тех. админу ваш ид {user_id} .")
-    await message.reply(
-    f"```Ваш ID: {user_id}```",
-    parse_mode="Markdown")
+    await message.reply(f"Здравствуйте, это чат-бот для уведомления о происшествиях. Ваш ID: {user_id}.")
+    if user_id == ADMIN_ID:
+        await message.answer(
+            "Вы администратор. Выберите действие:",
+            reply_markup=admin_reply_kb
+        )
+
 
 @dp.message(Command('add'), F.from_user.id == ADMIN_ID)
 async def cmd_add(message: types.Message):
@@ -132,6 +144,17 @@ async def cmd_add(message: types.Message):
 
     await add_user(user_id)
     await message.reply(f"✅ Пользователь с ID {user_id} подписан на оповещения.")
+    
+@dp.message(F.text == "📢 Заявить о происшествии", F.from_user.id == ADMIN_ID)
+async def admin_notify_button(message: types.Message, state: FSMContext):
+    await state.clear()
+    await state.set_state(NotifyIncident.waiting_for_date)
+    await message.answer("📅 Дата (ДД.MM.ГГГГ):")
+
+
+@dp.message(F.text == "➕ Добавить пользователя", F.from_user.id == ADMIN_ID)
+async def admin_add_user_button(message: types.Message):
+    await message.answer("Введите команду /add <user_id> для добавления пользователя.")
 
 @dp.message(Command('history'), F.from_user.id == ADMIN_ID)
 async def cmd_history(message: types.Message):
